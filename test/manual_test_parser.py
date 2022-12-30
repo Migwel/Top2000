@@ -1,14 +1,14 @@
 from unittest import TestCase
 
-from main.csvwriter import Top2000CsvWriter
-from main.parser import Top2000Parser, Top2000RankingDownloader
+from main.parser import Top2000RankingDownloader, Top2000Processor
+from main.writer import Top2000DatabaseWriter
 
 
-class ManualTestTop2000Parser(TestCase):
+class ManualTestTop2000Processor(TestCase):
 
-    def test_parse(self):
-        parser = Top2000Parser(Top2000RankingDownloader())
-        csv_writer = Top2000CsvWriter()
-        for year in range(1999, 2023):
-            top2000_entries = parser.parse(year)
-            csv_writer.write(year, top2000_entries)
+    def test_downloadRankings_valid(self):
+        processor = Top2000Processor(Top2000RankingDownloader(), 1000)
+        rankings = processor.downloadRankings()
+        writer = Top2000DatabaseWriter()
+        for year, ranking in rankings.items():
+            writer.write(year, ranking)

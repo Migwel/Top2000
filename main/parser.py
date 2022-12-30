@@ -1,22 +1,27 @@
 import json
-from typing import List
 
 import requests as requests
 
+
+class Top2000Ranking:
+    def __init__(self, year):
+        self.year = year
+        self.entries = []
+
+    def add_entry(self, entry):
+        self.entries.append(entry)
+
+
 class Top2000Entry:
     def __init__(self,
-                 current_position : int,
-                 last_year_position : int,
+                 position : int,
                  artist: str,
-                 artist_normalized : str,
                  song: str,
-                 song_normalized: str):
-        self.current_position = current_position
-        self.last_year_position = last_year_position
+                 year: int):
+        self.position = position
         self.artist = artist
-        self.artist_normalized = artist_normalized
         self.song = song
-        self.song_normalized = song_normalized
+        self.year = year
 
 
 class Top2000RankingDownloader:
@@ -26,24 +31,44 @@ class Top2000RankingDownloader:
         return page.text
 
 
-class Top2000Parser:
+class Top2000Processor:
 
-    def __init__(self, downloader : Top2000RankingDownloader):
+    def __init__(self, downloader: Top2000RankingDownloader, errors_allowed = 0):
         self.downloader = downloader
+        self.errors_allowed = errors_allowed
 
-    def parse(self, year: int) -> List[Top2000Entry]:
-        url = f"https://www.nporadio2.nl/api/charts/top-2000-van-{year}-12-25"
-        print(url)
-        year_ranking_json = self.downloader.download(url)
-        year_ranking = json.loads(year_ranking_json)
-        top2000_entries = list()
-        for entry in year_ranking["positions"]:
-            top2000_entry = Top2000Entry(entry["position"]["current"],
-                                         entry["position"]["previous"],
-                                         entry["track"]["artist"],
-                                         entry["track"]["artistNormalized"],
-                                         entry["track"]["title"],
-                                         entry["track"]["titleNormalized"])
-            top2000_entries.append(top2000_entry)
+    def downloadRankings(self):
+        track_id = 4620
+        nb_errors = 0
+        rankings = {}
+        while True:
+            url = f"https://www.nporadio2.nl/api/statistics/positions/track/{track_id}"
+            track_statistics_json = self.downloader.download(url)
+            track_statistics = json.loads(track_statistics_json)
+            if not isinstance(track_statistics, list):
+                print(f"Skipping track {track_id}")
+                nb_errors += 1
+                if nb_errors > self.errors_allowed:
+                    break
+                else:
+                    track_id += 1
+                    continue
 
-        return top2000_entries
+            nb_errors = 0
+            print(f"Getting track {track_id}")
+            for track_year_ranking in track_statistics:
+                if track_year_ranking.get("position") is None:
+                    continue
+
+                year = str(track_year_ranking["name"])
+                entry = Top2000Entry(track_year_ranking["position"],
+                                     track_year_ranking["artist"],
+                                     track_year_ranking["title"],
+                                     track_year_ranking["release_year"])
+
+                year_ranking = rankings.get(year, Top2000Ranking(year))
+                year_ranking.add_entry(entry)
+                rankings[year] = year_ranking
+
+            track_id += 1
+        return rankings
